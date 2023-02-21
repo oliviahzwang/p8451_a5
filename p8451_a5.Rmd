@@ -131,7 +131,7 @@ Based on the output above, the alpha and lambda values that minimize the RMSE ar
 
 ## 1.2 Model 2: Traditional Logistic Regression Model with All Features
 
-Below we construct a logistic regression model using the `glm` function, with alcohol consumption as the outcome of interest, and neurotocism, openness, agreeableness, conscientiousness, and impulsiveness scores as the independent variables of interest. To do so, we apply the `glm` function. To assess how the model fits the data, we can compute the McFadden's R^2. 
+Below we construct a logistic regression model using the `glm` function, with alcohol consumption as the outcome of interest, and neuroticism, openness, agreeableness, conscientiousness, and impulsiveness scores as the independent variables of interest. To do so, we apply the `glm` function. To assess how the model fits the data, we can compute the McFadden's R^2. 
 
 ```{r}
 alcohol_use_model_2 = 
@@ -169,24 +169,34 @@ Based on the output above, the lambda value that minimizes the RMSE alongside th
 
 ## 1.4 Choosing a Final Model 
 
-To determine which 
+To determine which of the three models to choose for the analysis, we will determine which model yields the highest accuracy of predictions. To do so, we will first use the training data set to predict the outcome of interest with each model, and compare the predictions to the observed data.
 
 ```{r}
 train_outcome_model_1 = predict(alcohol_use_model_1, alcohol_use)
 sum(train_outcome_model_1 == alcohol_use$alc_consumption) / length(train_outcome_model_1)
-```
 
-```{r}
 train_outcome_model_2 = predict(alcohol_use_model_2, alcohol_use)
 sum(ifelse(train_outcome_model_2 < 0.5, "Current User", "Not Current User") == alcohol_use$alc_consumption) / length(train_outcome_model_2)
-```
-```{r}
+
 train_outcome_model_3 = predict(alcohol_use_model_3, alcohol_use)
 sum(train_outcome_model_3 == alcohol_use$alc_consumption) / length(train_outcome_model_3)
 ```
+Both the Elastic Net and Lasso models yield 85.25% accuracy, whereas the traditional logistic regression model yields 84.24% accuracy. Given the same accuracy, we can proceed with the Elastic Net model for the final analysis, since it is an overall more powerful model compared to the Lasso. 
 
+# Part II: Applying the Final Model to Testing Data
 
+Below we apply the Elastic Net model generated in Part I within the testing data by using the `predict` function.
 
+```{r}
+test_outcome_final = predict(alcohol_use_model_1, alcohol_use_test)
+
+confusionMatrix(test_outcome_final, alcohol_use_test$alc_consumption, positive = "Current User")
+```
+The accuracy for the Elastic Net model is 0.8478, and the Kappa value is 0.688. The 95% confidence interval associated with the accuracy is 0.8155 to 0.8764. The sensitivity of this model is 1.000, and the specificity is 0.6742. 
+
+# Part III: A Research Application of this Analysis
+
+This analysis using the predictive model generated above can provide information regarding key personality traits that are heavily predictive of alcohol consumption. In future analyses, researchers can potentially forego the completion of extensive behavioral testing and instead use indicators of key personality traits to predict an individual's probability of being or becoming an alcohol user. Additionally, as usage of various substances in tandem to alcohol such as smoking and cannabis is common, this analysis may also be used to predict an individual's usage of other such substances. 
 
 
 
