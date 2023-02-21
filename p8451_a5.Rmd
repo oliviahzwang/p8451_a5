@@ -1,0 +1,153 @@
+---
+title: "P8451 Machine Learning in Public Health - Assignment 5"
+output: word_document
+date: "2023-2-21"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+In preparation for all the analyses below, we will load the following libraries:
+
+```{r}
+library(caret)
+library(tidyverse)
+library(dplyr)
+library(stats)
+library(factoextra)
+library(cluster)
+library(ggpubr)
+```
+
+# Part 0: Data Preprocessing
+
+We will begin by importing the drug use and personality trait survey data using the `read_csv` function. Next, we will clean the data by first applying the `clean_names` function, then applying the `mutate` function to rename the ID variable and to convert the `alc_consumption` variable from a character to a 2-level factor variable. The following 8 features are included in this data set: 
+
+* `alc_consumption` 
+* `neurotocism_score` 
+* `extroversion_score`
+* `openness_score`
+* `agreeableness_score` 
+* `conscientiousness_score` 
+* `impulsiveness_score` 
+* `sens_seeking_score` 
+
+Finally, we remove entries with NA using `na.omit`, any duplicate ID entries using the `distinct` function, and finally drop the unwanted ID entry using `select`. 
+
+```{r}
+alcohol_use = read_csv("./alcohol_use.csv") %>% 
+  janitor::clean_names() %>% 
+  mutate(id = x1, 
+         alc_consumption = factor(alc_consumption, 
+                                  labels = c("Current User", "Not Current User"))) %>% 
+  na.omit() %>% 
+  distinct(id, .keep_all = TRUE) %>% 
+  select(alc_consumption, neurotocism_score, extroversion_score, openness_score,
+         agreeableness_score, conscientiousness_score, impulsiveness_score, 
+         sens_seeking_score)
+```
+
+## Feature Selection: Identifying and Removing Correlated Predictors
+
+Many machine learning algorithms are unable to differentiate between highly correlated features. As such, we want to identify highly correlated features that present the same mathematical information and subsequently remove them, to avoid introducing error in our approach. 
+
+To complete this feature selection process, we will first select only the numeric variables in our `alcohol_use` data set, since correlations can only be assessed with numeric variables. We will then apply the `cor` function that will calculate correlations. These calculated correlations will then be fed into the `findCorrelation` function with a cutoff of __0.4__. The features that correlated at 0.4 and above will be stored in a new objected labeled as `high_correlations`.
+
+```{r}
+alcohol_use_numeric = alcohol_use %>% 
+  select(where(is.numeric)) 
+
+correlations = cor(alcohol_use_numeric, use = "complete.obs")
+
+high_correlations = findCorrelation(correlations, cutoff = 0.4)
+```
+
+The `high_correlations` object contains the indexes of 2 correlated predictors: 7 and 2. These correspond to the `extroversion_score` and `sens_seeking_score` features. In the code chunk below, will remove these highly correlated features. 
+
+```{r}
+alcohol_use_tidy = alcohol_use_numeric[ , -high_correlations] 
+```
+
+## Centering and Scaling
+
+Below, we center and scale these data. In general, it is always good practice to do so! 
+
+```{r}
+preprocess_setup <- preProcess(alcohol_use_tidy, method = c("center", "scale"))
+```
+
+## Partitioning Data
+
+For the purposes of this analysis, we will partition the data into training and testing using a 70/30 split. This process involves applying the `createDataPartition` function to generate a set of training and testing data with equal proportion of individual with the outcome of interest, i.e., `alc_consumption`. The new object `train_index` contains all the indexes of the rows in the original data set contained in the 70% split. The rows indexed to be in the 70% is assigned to a new training data set, and the remaining 30% is assigned to a new testing data set. 
+
+```{r}
+alcohol_use_tidy$alc_consumption = alcohol_use$alc_consumption
+
+train_index = createDataPartition(alcohol_use_tidy$alc_consumption, p = 0.7, list = FALSE)
+
+alcohol_use_train <- alcohol_use_tidy[train_index,]
+alcohol_use_test <- alcohol_use_tidy[-train_index,]
+```
+
+# Part I: Creating Three Different Models
+
+For the purposes of this analysis, we will create and compare the following models: 
+
+1. Elastic Net Model that chooses alpha and lambda via cross-validation using all features
+1. Traditional Logistic Regression Model using all features
+1. Lasso Model using all features
+
+## 1.1 Model 1: Elastic Net with All Features
+
+In the code chunk below, we will use the `trainControl` function to set our validation method. For the purposes of this analysis, we will use the 10-fold cross validation method.
+
+```{r}
+control.settings = 
+  trainControl(method = "cv", number = 10)
+```
+
+These control settings can now be applied within the `train` function, which will be used to implement our algorithms. We also apply the `tuneLength` function to set the number of combinations of different values of alpha and lambda to compare. In this analysis, we will set `tunelength` to 10. Finally, we can apply the `coef` function to model the coefficients at the lambda and alpha values that minimize the RMSE. 
+
+```{r}
+set.seed(123)
+alcohol_use_model_1 = 
+  train(alc_consumption ~ neurotocism_score + openness_score + agreeableness_score + 
+        conscientiousness_score + impulsiveness_score, 
+        data = alcohol_use_train, 
+        method = "glmnet", 
+        preProc = c("center", "scale"), 
+        trControl = control.settings, 
+        tuneLength = 10)
+
+alcohol_use_model_1$bestTune %>% 
+  knitr::kable()
+
+coef(alcohol_use_model_1$finalModel, alcohol_use_model_1$bestTune$lambda)
+```
+
+Based on the output above, the alpha and lambda values that minimize the RMSE are 0.4 and 0.26, respectively. 
+
+## 1.2 Model 2: Traditional Logistic Regression with All Features
+
+Below we construct a logistic regression model using alcohol consumption as the outcome of interest, and neurotocism, openness, agreeableness, conscientiousness, and impulsiveness scores as the independent variables of interest. To do so, we apply the `glm` function. 
+
+```{r}
+alcohol_use_model_2 = 
+  glm(alc_consumption ~ neurotocism_score + openness_score + agreeableness_score + 
+      conscientiousness_score + impulsiveness_score, 
+      data = alcohol_use_train, 
+      family = binomial())
+```
+
+
+
+
+
+
+
+
+
+
+
+
